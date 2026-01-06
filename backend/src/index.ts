@@ -14,6 +14,8 @@ import teamMember from "./models/teamMember";
 import approvalSchema from "./models/approvalSchema";
 import crypto from "crypto";
 import { managerMiddle } from "./middlewares/managerMiddleware";
+import mongoose from "mongoose";
+import createAuditLog from "./utils/auditLog";
 const app = express();
 app.use(express.json())
 connectToDatabase()
@@ -112,16 +114,29 @@ app.post("/login", async (req, res) => {
 
 app.post("/create/team", authMiddle, roleMiddle, async (req, res) => {
     const { name } = req.body;
+    const session = await mongoose.startSession();
     try {
+        session.startTransaction();
         const team = await teamSchema.create({
             name: name,
             //@ts-ignore
             createdBy: req.user.userId
+        }, null, { session })
+        await createAuditLog({
+            //@ts-ignore
+            actor: req.user.userId,
+            action: "TEAM_CREATED",
+            target: team._id,
+            session
         })
+        await session.commitTransaction();
+        session.endSession();
         res.json({
             team
         })
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         res.json({
             message: error
         })
@@ -225,19 +240,19 @@ app.post("/team/create/task/:teamId", authMiddle, managerMiddle, async (req, res
                 title: title,
                 description: description,
                 assignto: assignto,
-                teamId:teamId as string,
+                teamId: teamId as string,
                 //@ts-ignore
                 createdBy: req.user.userId,
                 dueDate: new Date(dueDate)
             })
             await approvalSchema.create({
-                taskId:task._id,
+                taskId: task._id,
                 //@ts-ignore
-                requestedBy:req.user.userId,
-                status:"PENDING"
+                requestedBy: req.user.userId,
+                status: "PENDING"
             })
             res.json({
-                message: "Task created Successfully", 
+                message: "Task created Successfully",
                 task
             })
         } else {
@@ -254,41 +269,96 @@ app.post("/team/create/task/:teamId", authMiddle, managerMiddle, async (req, res
 
 })
 
-app.post("/team/approval/:taskId",authMiddle, managerMiddle,async(req,res)=>{
-    const{taskId}=req.params;
+app.post("/team/approval/:taskId", authMiddle, managerMiddle, async (req, res) => {
+    const { taskId } = req.params;
+    const session = await mongoose.startSession();
     try {
-        const approval=await approvalSchema.findOne({taskId:taskId as string,status:"PENDING"});
 
-        if(!approval){
+        session.startTransaction();
+
+        const approval = await approvalSchema.findOne({ taskId: taskId as string, status: "PENDING" }, null, { session });
+
+        if (!approval) {
             return res.json({
-                message:"Approval is not pending"
+                message: "Approval is not pending"
             })
         }
 
-        approval.status="APPROVED";
+        approval.status = "APPROVED";
         //@ts-ignore
-        approval.reviewdBy=req.user.userId;
-        approval.comment="Approved"
-        await approval.save();
+        approval.reviewdBy = req.user.userId;
+        approval.comment = "Approved"
+        await approval.save({ session });
 
-        const task=await taskSchema.findById(taskId);
-        if(!task){
+        const task = await taskSchema.findById(taskId, null, { session });
+        if (!task) {
             return new Error("Something Went Wrong")
         }
-        task.status="APPROVED"
+        task.status = "APPROVED"
 
-        await task.save();
+        await task.save({ session });
+
+        await session.commitTransaction();
+        session.endSession();
 
         res.json({
-            message:"Task approved Succesfully"
+            message: "Task approved Succesfully"
         })
 
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         res.json({
-            message:error
+            message: error
         })
     }
-    
+
+})
+
+app.post("/team/reject/:taskId", authMiddle, managerMiddle, async (req, res) => {
+    const { taskId } = req.params;
+    const session = await mongoose.startSession();
+    try {
+
+        session.startTransaction();
+
+        const approval = await approvalSchema.findOne({ taskId: taskId as string, status: "PENDING" }, null, { session });
+
+        if (!approval) {
+            return res.json({
+                message: "Approval is not pending"
+            })
+        }
+
+        approval.status = "REJECT";
+        //@ts-ignore
+        approval.reviewdBy = req.user.userId;
+        approval.comment = "Reject"
+        await approval.save({ session });
+
+        const task = await taskSchema.findById(taskId, null, { session });
+        if (!task) {
+            return new Error("Something Went Wrong")
+        }
+        task.status = "REJECTED"
+
+        await task.save({ session });
+
+        await session.commitTransaction();
+        session.endSession();
+
+        res.json({
+            message: "Task reject Succesfully"
+        })
+
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        res.json({
+            message: error
+        })
+    }
+
 })
 
 app.listen(3000, () => {
