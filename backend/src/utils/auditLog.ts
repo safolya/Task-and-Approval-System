@@ -1,15 +1,28 @@
+import mongoose from "mongoose";
 import auditLog from "../models/auditLog";
 
-const createAuditLog = async (actor:string,action:string,target:string,session = null ) => {
+type CreateAuditLogParams = {
+    actor: mongoose.Types.ObjectId;
+    action: string;
+    target: mongoose.Types.ObjectId;
+    session: mongoose.ClientSession;
+};
+
+const createAuditLog = async ({
+    actor,
+    action,
+    target,
+    session
+}: CreateAuditLogParams) => {
     await auditLog.create(
         [{
             actor,
             action,
             target,
-            timestamp:Date.now()
         }],
-        session ? { session } : {}
+        { session }
     );
 };
 
 export default createAuditLog;
+

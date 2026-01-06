@@ -117,16 +117,21 @@ app.post("/create/team", authMiddle, roleMiddle, async (req, res) => {
     const session = await mongoose.startSession();
     try {
         session.startTransaction();
-        const team = await teamSchema.create({
+        const team = await teamSchema.create([{
             name: name,
             //@ts-ignore
             createdBy: req.user.userId
-        }, null, { session })
+        }], { session })
+
+          if (!team[0]) {
+            throw new Error("Team creation failed");
+        }
+        
         await createAuditLog({
             //@ts-ignore
-            actor: req.user.userId,
+            actor: req.user.userId as mongoose.Types.ObjectId,
             action: "TEAM_CREATED",
-            target: team._id,
+            target: team[0]._id as mongoose.Types.ObjectId,
             session
         })
         await session.commitTransaction();

@@ -6,14 +6,16 @@ const auditSchema=new mongoose.Schema({
         ref:"user"
     },
     action:{
-        type:String
+        type:String,
+        required:true
     },
     target:{
-        type:String
-    },
-    timestamp:{
-        type:Date
+        type:mongoose.Schema.Types.ObjectId
     }
-})
+},
+    {
+        timestamps:true
+    }
+)
 
 export default mongoose.model("audit",auditSchema);
