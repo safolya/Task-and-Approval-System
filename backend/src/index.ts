@@ -12,6 +12,7 @@ import teamSchema from "./models/teamSchema"
 import teamInvite from "./models/teamInvite";
 import teamMember from "./models/teamMember";
 import approvalSchema from "./models/approvalSchema";
+import notificationSchema from "./models/notificationSchema";
 import crypto from "crypto";
 import { managerMiddle } from "./middlewares/managerMiddleware";
 import mongoose from "mongoose";
@@ -123,15 +124,18 @@ app.post("/create/team", authMiddle, roleMiddle, async (req, res) => {
             createdBy: req.user.userId
         }], { session })
 
-          if (!team[0]) {
+        if (!team[0]) {
             throw new Error("Team creation failed");
         }
-        
+
         await createAuditLog({
             //@ts-ignore
             actor: req.user.userId as mongoose.Types.ObjectId,
             action: "TEAM_CREATED",
             target: team[0]._id as mongoose.Types.ObjectId,
+            metadata: {
+                teamName: name
+            },
             session
         })
         await session.commitTransaction();
@@ -188,6 +192,7 @@ app.post("/invite/team/:token", authMiddle, async (req, res) => {
         role: response?.role as string
     })
     response!.status = "ACCEPT";
+    await response.save()
     res.json({
         message: "User accepted",
         teamUser
@@ -195,18 +200,54 @@ app.post("/invite/team/:token", authMiddle, async (req, res) => {
 })
 
 //admin changes the roles in the team
-app.post("/team/:userId/role", authMiddle, roleMiddle, async (req, res) => {
-    const { userId } = req.params;
-    const { role } = req.body
+app.post("/teams/:teamId/members/:userId/role", authMiddle, roleMiddle, async (req, res) => {
+    const { teamId, userId } = req.params;
+    const { role: newRole } = req.body
+    const teamObjectId = new mongoose.Types.ObjectId(teamId);
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    const session = await mongoose.startSession();
     try {
-        const roleChange = await teamMember.findOneAndUpdate({ userId: userId as string }, {
-            role: role
-        })
+        session.startTransaction();
+        const member = await teamMember.findOne(
+            { teamId: teamObjectId, userId: userObjectId },
+            null,
+            { session }
+        );
+        if (!member) {
+            throw new Error("User is not a member of this team");
+        }
+
+        const oldRole = member.role;
+
+        if (oldRole === newRole) {
+            throw new Error("User already has this role");
+        }
+
+        member.role = newRole;
+        await member.save({ session });
+
+        await createAuditLog({
+            //@ts-ignore
+            actor: req.user.userId,
+            action: "ROLE_CHANGED",
+            target: userId as unknown as mongoose.Types.ObjectId,
+            metadata: {
+                teamId,
+                oldRole,
+                newRole
+            },
+            session
+        });
+
+        await session.commitTransaction();
+        session.endSession();
+
         res.json({
             message: "Role change Successfully",
-            roleChange
         })
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         res.json({
             message: error
         })
@@ -216,13 +257,33 @@ app.post("/team/:userId/role", authMiddle, roleMiddle, async (req, res) => {
 
 app.post("/team/:userId/remove", authMiddle, roleMiddle, async (req, res) => {
     const { userId } = req.params;
+    const session = await mongoose.startSession();
     try {
+        session.startTransaction();
         const removeUser = await teamMember.findOneAndDelete({ userId: userId as string });
+
+        await createAuditLog({
+            //@ts-ignore
+            actor: req.user.userId,
+            action: "REMOVE_USER",
+            target: userId as unknown as mongoose.Types.ObjectId,
+            metadata: {
+                userId
+            },
+            session
+        });
+
+        await session.commitTransaction();
+        session.endSession();
+
+
         res.json({
             message: "Remove Succesfully",
             removeUser
         })
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         res.json({
             message: error
         })
@@ -233,7 +294,9 @@ app.post("/team/:userId/remove", authMiddle, roleMiddle, async (req, res) => {
 app.post("/team/create/task/:teamId", authMiddle, managerMiddle, async (req, res) => {
     const { title, description, assignto, dueDate, } = req.body;
     const { teamId } = req.params;
+    const session = await mongoose.startSession();
     try {
+        session.startTransaction();
         const userCheck = await teamMember.findOne({ userId: assignto });
         if (!userCheck) {
             return res.status(404).json({
@@ -256,16 +319,44 @@ app.post("/team/create/task/:teamId", authMiddle, managerMiddle, async (req, res
                 requestedBy: req.user.userId,
                 status: "PENDING"
             })
+
+            const taskId=task._id;
+
+            await createAuditLog({
+                //@ts-ignore
+                actor: req.user.userId,
+                action: "CREATED_TASK",
+                target: task._id,
+                metadata: {
+                    teamId,
+                    taskId
+                },
+                session
+            });
+
+            await session.commitTransaction();
+            session.endSession();
             res.json({
                 message: "Task created Successfully",
                 task
+            });
+
+            await notificationSchema.create({
+                userId:assignto,
+                type:"TASK_ASSIGNED",
+                message:"You have been assigned to a task",
             })
+            
         } else {
+            await session.abortTransaction();
+            session.endSession();
             res.json({
                 message: "User is not a part of any team"
             })
         }
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         res.json({
             message: error
         })
@@ -302,6 +393,19 @@ app.post("/team/approval/:taskId", authMiddle, managerMiddle, async (req, res) =
         task.status = "APPROVED"
 
         await task.save({ session });
+
+          await createAuditLog({
+            //@ts-ignore
+            actor: req.user.userId,
+            action: "TASK_APPROVED",
+            target: taskId as unknown as mongoose.Types.ObjectId,
+            metadata: {
+                taskId,
+                //@ts-ignore
+                by:req.user.userId
+            },
+            session
+        });
 
         await session.commitTransaction();
         session.endSession();
@@ -348,6 +452,20 @@ app.post("/team/reject/:taskId", authMiddle, managerMiddle, async (req, res) => 
         task.status = "REJECTED"
 
         await task.save({ session });
+
+            await createAuditLog({
+            //@ts-ignore
+            actor: req.user.userId,
+            action: "TASK_REJECTED",
+            target: taskId as unknown as mongoose.Types.ObjectId,
+            metadata: {
+                taskId,
+                //@ts-ignore
+                by:req.user.userId
+            },
+            session
+        });
+
 
         await session.commitTransaction();
         session.endSession();

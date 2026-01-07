@@ -5,6 +5,7 @@ type CreateAuditLogParams = {
     actor: mongoose.Types.ObjectId;
     action: string;
     target: mongoose.Types.ObjectId;
+    metadata?:Record<string, unknown>;
     session: mongoose.ClientSession;
 };
 
@@ -12,6 +13,7 @@ const createAuditLog = async ({
     actor,
     action,
     target,
+    metadata={},
     session
 }: CreateAuditLogParams) => {
     await auditLog.create(
@@ -19,8 +21,9 @@ const createAuditLog = async ({
             actor,
             action,
             target,
+            metadata
         }],
-        { session }
+        session ? { session } : undefined
     );
 };
 

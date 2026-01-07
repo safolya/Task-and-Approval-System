@@ -11,6 +11,10 @@ const auditSchema=new mongoose.Schema({
     },
     target:{
         type:mongoose.Schema.Types.ObjectId
+    },
+    metadata:{
+        type: mongoose.Schema.Types.Mixed, // ✅ FIX
+        default: {}
     }
 },
     {

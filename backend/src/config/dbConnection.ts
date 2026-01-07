@@ -4,7 +4,7 @@ dotenv.config()
 
     async function connectToDatabase() {
         try {
-            const mongoUri ="mongodb://127.0.0.1:27017/ttaas";
+            const mongoUri ="mongodb+srv://task_and_approval_system:B3h9%40NYFQ9knYx%23@cluster0.nqfqhh6.mongodb.net/task_and_approval_system?retryWrites=true&w=majority";
             await mongoose.connect(mongoUri as string);
             console.log('MongoDB connection successfully established.');
         } catch (error) {
