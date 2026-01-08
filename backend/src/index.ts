@@ -17,6 +17,7 @@ import crypto from "crypto";
 import { managerMiddle } from "./middlewares/managerMiddleware";
 import mongoose from "mongoose";
 import createAuditLog from "./utils/auditLog";
+import authRoute from "./modules/auth/auth.routes"
 const app = express();
 app.use(express.json())
 connectToDatabase()
@@ -28,90 +29,94 @@ const secret = process.env.JWT_SECRET;
 if (!secret) {
     throw new Error("JWT secret is not defined");
 }
-app.post("/signup", async (req, res) => {
-    const { name, email, password } = req.body;
-    try {
-        const userCount = await userSchema.countDocuments();
-        if (userCount == 0) {
-            bcrypt.hash(password, 10, async (err, hash) => {
-                let user = await userSchema.create({
-                    name: name,
-                    email: email,
-                    password: hash,
-                    globalRole: "ADMIN"
-                })
-                const token = jwt.sign({
-                    userId: user._id
-                }, secret, { expiresIn: "10d" })
-                res.cookie("token", token, {
-                    httpOnly: true,
-                    secure: false,
-                    sameSite: "lax",
-                    maxAge: 24 * 60 * 60 * 1000
-                })
-                res.json({
-                    user,
-                    token: token
-                })
-            })
-        } else {
-            bcrypt.hash(password, 10, async (err, hash) => {
-                const user = await userSchema.create({
-                    name: name,
-                    email: email,
-                    password: hash,
-                    globalRole: "USER"
-                })
-                const token = jwt.sign({
-                    userId: user._id
-                }, secret, { expiresIn: "10d" })
-                res.cookie("token", token, {
-                    httpOnly: true,
-                    secure: false,
-                    sameSite: "lax",
-                    maxAge: 24 * 60 * 60 * 1000
-                })
-                res.json({
-                    user,
-                    token: token
-                })
-            })
-        }
-    } catch (error) {
-        console.log(error)
-    }
-})
 
-app.post("/login", async (req, res) => {
-    const { email, password } = req.body;
-    try {
-        const user = await userSchema.findOne({ email: email })
-        if (user) {
-            bcrypt.compare(password, user.password, (err, result) => {
-                if (result == true) {
-                    const token = jwt.sign({
-                        userId: user._id
-                    }, secret, { expiresIn: "10d" })
-                    res.cookie("token", token)
-                    res.json({
-                        user,
-                        token: token
-                    })
-                } else {
-                    res.json({
-                        message: "Incorrect Credentials"
-                    })
-                }
-            })
-        } else {
-            console.log("user can't found")
-        }
-    } catch (error) {
-        res.json({
-            message: error
-        })
-    }
-})
+//AUTH ROUTE 
+app.use("/api/v1/auth",authRoute);
+
+// app.post("/signup", async (req, res) => {
+//     const { name, email, password } = req.body;
+//     try {
+//         const userCount = await userSchema.countDocuments();
+//         if (userCount == 0) {
+//             bcrypt.hash(password, 10, async (err, hash) => {
+//                 let user = await userSchema.create({
+//                     name: name,
+//                     email: email,
+//                     password: hash,
+//                     globalRole: "ADMIN"
+//                 })
+//                 const token = jwt.sign({
+//                     userId: user._id
+//                 }, secret, { expiresIn: "10d" })
+//                 res.cookie("token", token, {
+//                     httpOnly: true,
+//                     secure: false,
+//                     sameSite: "lax",
+//                     maxAge: 24 * 60 * 60 * 1000
+//                 })
+//                 res.json({
+//                     user,
+//                     token: token
+//                 })
+//             })
+//         } else {
+//             bcrypt.hash(password, 10, async (err, hash) => {
+//                 const user = await userSchema.create({
+//                     name: name,
+//                     email: email,
+//                     password: hash,
+//                     globalRole: "USER"
+//                 })
+//                 const token = jwt.sign({
+//                     userId: user._id
+//                 }, secret, { expiresIn: "10d" })
+//                 res.cookie("token", token, {
+//                     httpOnly: true,
+//                     secure: false,
+//                     sameSite: "lax",
+//                     maxAge: 24 * 60 * 60 * 1000
+//                 })
+//                 res.json({
+//                     user,
+//                     token: token
+//                 })
+//             })
+//         }
+//     } catch (error) {
+//         console.log(error)
+//     }
+// })
+
+// app.post("/login", async (req, res) => {
+//     const { email, password } = req.body;
+//     try {
+//         const user = await userSchema.findOne({ email: email })
+//         if (user) {
+//             bcrypt.compare(password, user.password, (err, result) => {
+//                 if (result == true) {
+//                     const token = jwt.sign({
+//                         userId: user._id
+//                     }, secret, { expiresIn: "10d" })
+//                     res.cookie("token", token)
+//                     res.json({
+//                         user,
+//                         token: token
+//                     })
+//                 } else {
+//                     res.json({
+//                         message: "Incorrect Credentials"
+//                     })
+//                 }
+//             })
+//         } else {
+//             console.log("user can't found")
+//         }
+//     } catch (error) {
+//         res.json({
+//             message: error
+//         })
+//     }
+// })
 
 app.post("/create/team", authMiddle, roleMiddle, async (req, res) => {
     const { name } = req.body;
@@ -394,6 +399,12 @@ app.post("/team/approval/:taskId", authMiddle, managerMiddle, async (req, res) =
 
         await task.save({ session });
 
+        await notificationSchema.create({
+                userId:task.assignto as mongoose.Types.ObjectId,
+                type:"TASK_APPROVED",
+                message:"You assigned task has been approved",
+            })
+
           await createAuditLog({
             //@ts-ignore
             actor: req.user.userId,
@@ -452,6 +463,12 @@ app.post("/team/reject/:taskId", authMiddle, managerMiddle, async (req, res) => 
         task.status = "REJECTED"
 
         await task.save({ session });
+
+         await notificationSchema.create({
+                userId:task.assignto as mongoose.Types.ObjectId,
+                type:"TASK_REJECTED",
+                message:"You assigned task has been rejected",
+            })
 
             await createAuditLog({
             //@ts-ignore

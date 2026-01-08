@@ -1,14 +1,14 @@
 import mongoose,{Schema} from "mongoose";
 
-interface Iuser{
-    name:string,
-    email:string,
-    password:string,
-    globalRole:"ADMIN" | "USER",
-    createdAt: Date
-}
+// interface Iuser{
+//     name:string,
+//     email:string,
+//     password:string,
+//     globalRole:"ADMIN" | "USER",
+//     createdAt: Date
+// }
 
-const userSchema=new Schema<Iuser>({
+const userSchema=new Schema({
     name:{
         type:String,
         unique:true,
@@ -34,4 +34,4 @@ const userSchema=new Schema<Iuser>({
     }
 })
 
-export default mongoose.model<Iuser>("user",userSchema);
+export default mongoose.model("user",userSchema);
