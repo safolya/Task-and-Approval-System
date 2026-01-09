@@ -18,6 +18,7 @@ import { managerMiddle } from "./middlewares/managerMiddleware";
 import mongoose from "mongoose";
 import createAuditLog from "./utils/auditLog";
 import authRoute from "./modules/auth/auth.routes"
+import teamRoute from "./modules/team/team.routes"
 const app = express();
 app.use(express.json())
 connectToDatabase()
@@ -32,6 +33,7 @@ if (!secret) {
 
 //AUTH ROUTE 
 app.use("/api/v1/auth",authRoute);
+app.use("/api/v1/team",teamRoute);
 
 // app.post("/signup", async (req, res) => {
 //     const { name, email, password } = req.body;
@@ -118,91 +120,95 @@ app.use("/api/v1/auth",authRoute);
 //     }
 // })
 
-app.post("/create/team", authMiddle, roleMiddle, async (req, res) => {
-    const { name } = req.body;
-    const session = await mongoose.startSession();
-    try {
-        session.startTransaction();
-        const team = await teamSchema.create([{
-            name: name,
-            //@ts-ignore
-            createdBy: req.user.userId
-        }], { session })
+// app.post("/create/team", authMiddle, roleMiddle, async (req, res) => {
+//     const { name } = req.body;
+//     const session = await mongoose.startSession();
+//     try {
+//         session.startTransaction();
+//         const team = await teamSchema.create([{
+//             name: name,
+//             //@ts-ignore
+//             createdBy: req.user.userId
+//         }], { session })
 
-        if (!team[0]) {
-            throw new Error("Team creation failed");
-        }
+//         if (!team[0]) {
+//             throw new Error("Team creation failed");
+//         }
 
-        await createAuditLog({
-            //@ts-ignore
-            actor: req.user.userId as mongoose.Types.ObjectId,
-            action: "TEAM_CREATED",
-            target: team[0]._id as mongoose.Types.ObjectId,
-            metadata: {
-                teamName: name
-            },
-            session
-        })
-        await session.commitTransaction();
-        session.endSession();
-        res.json({
-            team
-        })
-    } catch (error) {
-        await session.abortTransaction();
-        session.endSession();
-        res.json({
-            message: error
-        })
-    }
+//         await createAuditLog({
+//             //@ts-ignore
+//             actor: req.user.userId as mongoose.Types.ObjectId,
+//             action: "TEAM_CREATED",
+//             target: team[0]._id as mongoose.Types.ObjectId,
+//             metadata: {
+//                 teamName: name
+//             },
+//             session
+//         })
+//         await session.commitTransaction();
+//         session.endSession();
+//         res.json({
+//             team
+//         })
+//     } catch (error) {
+//         await session.abortTransaction();
+//         session.endSession();
+//         res.json({
+//             message: error
+//         })
+//     }
 
-})
+// })
+
 //when admin send invite a user through email
-app.post("/team/invite/:teamId", authMiddle, roleMiddle, async (req, res) => {
-    const { teamId } = req.params;
-    const { email } = req.body;
-    try {
-        const invite = await teamInvite.create({
-            teamId: teamId as unknown as string,
-            email: email,
-            role: "MEMBER",
-            status: "PENDING",
-            token: crypto.randomBytes(32).toString("hex")
-        })
-        res.json({
-            message: "Invite send Successfully",
-            invite
-        })
-    } catch (error) {
-        res.json({
-            message: error
-        })
-    }
 
-})
+// app.post("/team/invite/:teamId", authMiddle, roleMiddle, async (req, res) => {
+//     const { teamId } = req.params;
+//     const { email } = req.body;
+//     try {
+//         const invite = await teamInvite.create({
+//             teamId: teamId as unknown as string,
+//             email: email,
+//             role: "MEMBER",
+//             status: "PENDING",
+//             token: crypto.randomBytes(32).toString("hex")
+//         })
+//         res.json({
+//             message: "Invite send Successfully",
+//             invite
+//         })
+//     } catch (error) {
+//         res.json({
+//             message: error
+//         })
+//     }
+
+// })
+
 // when user accept the invite
-app.post("/invite/team/:token", authMiddle, async (req, res) => {
-    const { token } = req.params
-    const response = await teamInvite.findOne({
-        token: token as unknown as string,
-        status: "PENDING"
-    })
-    if (!response) {
-        throw new Error("Invite not found");
-    }
-    const teamUser = await teamMember.create({
-        teamId: response?.teamId as unknown as string,
-        //@ts-ignore
-        userId: req.user.userId,
-        role: response?.role as string
-    })
-    response!.status = "ACCEPT";
-    await response.save()
-    res.json({
-        message: "User accepted",
-        teamUser
-    })
-})
+
+// app.post("/invite/team/:token", authMiddle, async (req, res) => {
+//     const { token } = req.params
+//     const response = await teamInvite.findOne({
+//         token: token as unknown as string,
+//         status: "PENDING"
+//     })
+//     if (!response) {
+//         throw new Error("Invite not found");
+//     }
+//     const teamUser = await teamMember.create({
+//         teamId: response?.teamId as unknown as string,
+//         //@ts-ignore
+//         userId: req.user.userId,
+//         role: response?.role as string
+//     })
+//     response!.status = "ACCEPT";
+//     await response.save()
+//     res.json({
+//         message: "User accepted",
+//         teamUser
+//     })
+// })
 
 //admin changes the roles in the team
 app.post("/teams/:teamId/members/:userId/role", authMiddle, roleMiddle, async (req, res) => {
