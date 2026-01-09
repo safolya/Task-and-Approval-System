@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import * as teamService from "./team.service";
-import mongoose, { mongo } from "mongoose";
+import { TeamRole } from "../../types/roles";
 
 export const createTeam = async (req: Request, res: Response) => {
   try {
@@ -95,4 +95,96 @@ export const resInvite=async(req:Request,res:Response)=>{
       message: "Failed to accept invite"
     });
   }
+}
+
+
+//role change
+
+
+export const roleChange=async(req:Request,res:Response)=>{
+  try {
+    const {teamId,userId}=req.params;
+    const {role}=req.body;
+    //@ts-ignore
+    const performedBy=req.user.userId
+
+    if (role !== "MANAGER" && role !== "MEMBER") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid role"
+      });
+    }
+    
+    const newRole:TeamRole=role
+
+    await teamService.roleChange({
+      teamId:teamId as string,
+      userId:userId as string,
+      newRole,
+      performedBy
+    }) 
+     return res.status(200).json({
+      success: true,
+      message: "Role changed successfully"
+    });
+
+  } catch (error:any) {
+    console.error("Change role error:", error);
+
+    if (error.message === "MEMBER_NOT_FOUND") {
+      return res.status(404).json({
+        success: false,
+        message: "User is not a member of this team"
+      });
+    }
+
+    if (error.message === "SAME_ROLE") {
+      return res.status(400).json({
+        success: false,
+        message: "User already has this role"
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to change member role"
+    });
+  }
+    
+}
+
+//remove team member 
+
+export const remove=async(req:Request,res:Response)=>{
+  try {
+    const {userId,teamId}=req.params;
+
+    await teamService.removeTeamMember({
+      teamId:teamId as string,
+      targetUserId: userId as string,
+      //@ts-ignore
+      performedBy: req.user!.userId
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "User removed from team successfully"
+    });
+    
+  } catch (error:any) {
+    console.error("Remove member error:", error);
+
+    if (error.message === "MEMBER_NOT_FOUND") {
+      return res.status(404).json({
+        success: false,
+        message: "User is not a member of this team"
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to remove team member"
+    });
+  }
+
 }

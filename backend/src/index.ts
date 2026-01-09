@@ -211,96 +211,96 @@ app.use("/api/v1/team",teamRoute);
 // })
 
 //admin changes the roles in the team
-app.post("/teams/:teamId/members/:userId/role", authMiddle, roleMiddle, async (req, res) => {
-    const { teamId, userId } = req.params;
-    const { role: newRole } = req.body
-    const teamObjectId = new mongoose.Types.ObjectId(teamId);
-    const userObjectId = new mongoose.Types.ObjectId(userId);
-    const session = await mongoose.startSession();
-    try {
-        session.startTransaction();
-        const member = await teamMember.findOne(
-            { teamId: teamObjectId, userId: userObjectId },
-            null,
-            { session }
-        );
-        if (!member) {
-            throw new Error("User is not a member of this team");
-        }
+// app.post("/teams/:teamId/members/:userId/role", authMiddle, roleMiddle, async (req, res) => {
+//     const { teamId, userId } = req.params;
+//     const { role: newRole } = req.body
+//     const teamObjectId = new mongoose.Types.ObjectId(teamId);
+//     const userObjectId = new mongoose.Types.ObjectId(userId);
+//     const session = await mongoose.startSession();
+//     try {
+//         session.startTransaction();
+//         const member = await teamMember.findOne(
+//             { teamId: teamObjectId, userId: userObjectId },
+//             null,
+//             { session }
+//         );
+//         if (!member) {
+//             throw new Error("User is not a member of this team");
+//         }
 
-        const oldRole = member.role;
+//         const oldRole = member.role;
 
-        if (oldRole === newRole) {
-            throw new Error("User already has this role");
-        }
+//         if (oldRole === newRole) {
+//             throw new Error("User already has this role");
+//         }
 
-        member.role = newRole;
-        await member.save({ session });
+//         member.role = newRole;
+//         await member.save({ session });
 
-        await createAuditLog({
-            //@ts-ignore
-            actor: req.user.userId,
-            action: "ROLE_CHANGED",
-            target: userId as unknown as mongoose.Types.ObjectId,
-            metadata: {
-                teamId,
-                oldRole,
-                newRole
-            },
-            session
-        });
+//         await createAuditLog({
+//             //@ts-ignore
+//             actor: req.user.userId,
+//             action: "ROLE_CHANGED",
+//             target: userId as unknown as mongoose.Types.ObjectId,
+//             metadata: {
+//                 teamId,
+//                 oldRole,
+//                 newRole
+//             },
+//             session
+//         });
 
-        await session.commitTransaction();
-        session.endSession();
+//         await session.commitTransaction();
+//         session.endSession();
 
-        res.json({
-            message: "Role change Successfully",
-        })
-    } catch (error) {
-        await session.abortTransaction();
-        session.endSession();
-        res.json({
-            message: error
-        })
-    }
+//         res.json({
+//             message: "Role change Successfully",
+//         })
+//     } catch (error) {
+//         await session.abortTransaction();
+//         session.endSession();
+//         res.json({
+//             message: error
+//         })
+//     }
 
-})
+// })
 
-app.post("/team/:userId/remove", authMiddle, roleMiddle, async (req, res) => {
-    const { userId } = req.params;
-    const session = await mongoose.startSession();
-    try {
-        session.startTransaction();
-        const removeUser = await teamMember.findOneAndDelete({ userId: userId as string });
+// app.post("/team/:userId/remove", authMiddle, roleMiddle, async (req, res) => {
+//     const { userId } = req.params;
+//     const session = await mongoose.startSession();
+//     try {
+//         session.startTransaction();
+//         const removeUser = await teamMember.findOneAndDelete({ userId: userId as string });
 
-        await createAuditLog({
-            //@ts-ignore
-            actor: req.user.userId,
-            action: "REMOVE_USER",
-            target: userId as unknown as mongoose.Types.ObjectId,
-            metadata: {
-                userId
-            },
-            session
-        });
+//         await createAuditLog({
+//             //@ts-ignore
+//             actor: req.user.userId,
+//             action: "REMOVE_USER",
+//             target: userId as unknown as mongoose.Types.ObjectId,
+//             metadata: {
+//                 userId
+//             },
+//             session
+//         });
 
-        await session.commitTransaction();
-        session.endSession();
+//         await session.commitTransaction();
+//         session.endSession();
 
 
-        res.json({
-            message: "Remove Succesfully",
-            removeUser
-        })
-    } catch (error) {
-        await session.abortTransaction();
-        session.endSession();
-        res.json({
-            message: error
-        })
-    }
+//         res.json({
+//             message: "Remove Succesfully",
+//             removeUser
+//         })
+//     } catch (error) {
+//         await session.abortTransaction();
+//         session.endSession();
+//         res.json({
+//             message: error
+//         })
+//     }
 
-})
+// })
 
 app.post("/team/create/task/:teamId", authMiddle, managerMiddle, async (req, res) => {
     const { title, description, assignto, dueDate, } = req.body;

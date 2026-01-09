@@ -4,6 +4,8 @@ import teamSchema from "../../models/teamSchema";
 import teamInvite from "../../models/teamInvite";
 import teamMember from "../../models/teamMember";
 import createAuditLog from "../../service/audit.service";
+import { TeamRole } from "../../types/roles";
+
 import crypto from "crypto";
 
 interface CreateTeamInput {
@@ -159,6 +161,111 @@ export const acceptTeamInvite = async ({
       teamId: createdMember!.teamId,
       role: createdMember!.role
     };
+
+  } finally {
+    session.endSession();
+  }
+};
+
+
+//role change
+
+interface RoleChange {
+  teamId: string,
+  userId:string,
+  newRole:TeamRole,
+  performedBy:string
+}
+
+
+export const roleChange= async ({
+    teamId,
+    userId,
+    newRole,
+    performedBy
+}:RoleChange)=>{
+        const session = await mongoose.startSession();
+
+  try {
+    await session.withTransaction(async () => {
+      const member = await teamMember.findOne({
+        teamId:teamId,
+        userId:userId
+      }).session(session);
+
+      if (!member) {
+        throw new Error("MEMBER_NOT_FOUND");
+      }
+
+      if (member.role === newRole) {
+        throw new Error("SAME_ROLE");
+      }
+
+      const oldRole = member.role;
+
+      member.role = newRole;
+      await member.save({ session });
+
+      await createAuditLog({
+        actor: performedBy as unknown as mongoose.Types.ObjectId,
+        action: "ROLE_CHANGED",
+        target: member.userId as unknown as mongoose.Types.ObjectId,
+        metadata: {
+          teamId,
+          oldRole,
+          newRole
+        },
+        session
+      });
+    });
+
+  } finally {
+    session.endSession();
+  }
+}
+
+
+//remove team member
+
+interface RemoveMemberInput {
+  teamId: string;
+  targetUserId: string;
+  performedBy: string;
+}
+
+export const removeTeamMember = async ({
+  teamId,
+  targetUserId,
+  performedBy
+}: RemoveMemberInput) => {
+  const session = await mongoose.startSession();
+
+  try {
+    await session.withTransaction(async () => {
+      const member = await teamMember.findOneAndDelete(
+        {
+          teamId,
+          userId: targetUserId
+        },
+        { session }
+      );
+
+      if (!member) {
+        throw new Error("MEMBER_NOT_FOUND");
+      }
+
+      await createAuditLog({
+        actor: performedBy as unknown as mongoose.Types.ObjectId,
+        action: "REMOVE_USER",
+        target: member.userId as unknown as mongoose.Types.ObjectId,
+        metadata: {
+          teamId,
+          removedUserId: targetUserId,
+          role: member.role
+        },
+        session
+      });
+    });
 
   } finally {
     session.endSession();
