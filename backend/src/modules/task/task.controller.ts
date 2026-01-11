@@ -1,6 +1,37 @@
 import { Request, Response } from "express";
 import * as taskService from "./task.service";
 
+
+export const allTask=async(req:Request,res:Response)=>{
+    try {
+        //@ts-ignore
+        const userId=req.user.userId;
+    
+        const allTask= await taskService.getTask({
+          userId
+        })
+        return res.status(201).json({
+          success: true,
+          allTask
+        })
+    
+      } catch (error:any) {
+        console.error("Task error:", error);
+    
+        if (error.message === "TASK_NOT_FOUND") {
+          return res.status(404).json({
+            success: false,
+            message: "Task not Found"
+          });
+        }
+        return res.status(500).json({
+          success: false,
+          message: "Something went wrong"
+        });
+      }
+}
+
+
 export const createTask=async(req:Request,res:Response)=>{
     try {
         const { teamId } = req.params;

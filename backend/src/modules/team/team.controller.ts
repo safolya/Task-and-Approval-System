@@ -2,6 +2,43 @@ import { Request, Response } from "express";
 import * as teamService from "./team.service";
 import { TeamRole } from "../../types/roles";
 
+
+
+export const getTeam=async(req:Request,res:Response)=>{
+  try {
+    //@ts-ignore
+    const userId=req.user.userId;
+
+    const allTeam= await teamService.getTeam({
+      userId
+    })
+    return res.status(201).json({
+      success: true,
+      allTeam
+    })
+
+  } catch (error:any) {
+    console.error("Team error:", error);
+
+    if (error.message === "TEAM_NOT_FOUND") {
+      return res.status(404).json({
+        success: false,
+        message: "Team not Found"
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send invite"
+    });
+  }
+}
+
+
+
+
+
+
+
 export const createTeam = async (req: Request, res: Response) => {
   try {
     const { name } = req.body;

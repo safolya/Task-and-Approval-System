@@ -8,6 +8,35 @@ import { TeamRole } from "../../types/roles";
 
 import crypto from "crypto";
 
+
+interface GetTeam {
+  userId:string
+}
+
+
+export const getTeam =async ({
+  userId
+}:GetTeam)=>{
+  const isTeam=await teamMember.find({userId:userId});
+
+  if(isTeam.length===0){
+    throw new Error ("TEAM_NOT_FOUND")
+  }
+
+   const teamIds=isTeam.map(m=>m.teamId)
+
+   const teams = await teamSchema.find({
+    _id: { $in: teamIds }
+  });
+  
+  return{
+    teams
+  }
+
+}
+
+
+
 interface CreateTeamInput {
   name: string;
   userId: string;

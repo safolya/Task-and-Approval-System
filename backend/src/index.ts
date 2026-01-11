@@ -7,10 +7,15 @@ import teamRoute from "./modules/team/team.routes"
 import taskRoute from "./modules/task/task.routes"
 import approvalRoute from "./modules/approval/approval.routes"
 import limiter from "./service/rate-limit.service";
+import cors from "cors";
 
 const app = express();
 app.use(express.json())
 app.use(limiter)
+app.use(cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+}));
 connectToDatabase()
 dotenv.config()
 

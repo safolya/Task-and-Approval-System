@@ -6,6 +6,33 @@ import taskSchema from "../../models/taskSchema";
 import teamMember from "../../models/teamMember";
 
 
+interface GetTask {
+  userId:string
+}
+
+
+export const getTask =async ({
+  userId
+}:GetTask)=>{
+  const isTask=await taskSchema.find({assignto:userId});
+
+  if(isTask.length===0){
+    throw new Error ("TASK_NOT_FOUND")
+  }
+
+   const taskIds=isTask.map(m=>m._id)
+
+   const tasks = await taskSchema.find({
+    _id: { $in: taskIds }
+  });
+  
+  return{
+    tasks
+  }
+
+}
+
+
 interface CreateTaskInput {
   teamId: string;
   title: string;
